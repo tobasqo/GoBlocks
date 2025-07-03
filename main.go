@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"slices"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -57,7 +58,7 @@ type Position struct {
 }
 
 type Block interface {
-	draw()
+	draw(occupied [COLS][ROWS]bool, isNew bool)
 	setOccupied(occupied *[COLS][ROWS]bool)
 	isOnOccupied(occupied [COLS][ROWS]bool) bool
 	moveUp()
@@ -81,16 +82,18 @@ func newSquareBlock(col, row, size int32) *SquareBlock {
 		size,
 		randomColor(),
 	}
-	logger.Printf("[DEBUG] created new square=%v", s)
+	logger.Printf("[DEBUG] created new square=%+v", s)
 	return &s
 }
 
-func (s SquareBlock) draw() {
+func (s SquareBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
 	for xi := range s.size {
 		x := (s.col+xi)*BLOCK_SIZE + LEFT_MARGIN
 		for yi := range s.size {
 			y := (s.row+yi)*BLOCK_SIZE + TOP_MARGIN
-			drawBlock(x, y, s.color)
+			if isNew || occupied[s.col+xi][s.row+yi] {
+				drawBlock(x, y, s.color)
+			}
 		}
 	}
 }
@@ -98,7 +101,7 @@ func (s SquareBlock) draw() {
 func (s SquareBlock) setOccupied(occupied *[COLS][ROWS]bool) {
 	for col := range s.size {
 		for row := range s.size {
-			logger.Printf("[DEBUG] square(%v).setOccupied(col=%d, row=%d)", s, s.col+col, s.row+row)
+			logger.Printf("[DEBUG] square(%+v).setOccupied(col=%d, row=%d)", s, s.col+col, s.row+row)
 			occupied[s.col+col][s.row+row] = true
 		}
 	}
@@ -108,7 +111,7 @@ func (s SquareBlock) isOnOccupied(occupied [COLS][ROWS]bool) bool {
 	for col := range s.size {
 		for row := range s.size {
 			if occupied[s.col+col][s.row+row] {
-				logger.Printf("[DEBUG] square(%v).isOnOccupied(col=%d, row=%d)", s, col, row)
+				logger.Printf("[DEBUG] square(%+v).isOnOccupied(col=%d, row=%d)", s, col, row)
 				return true
 			}
 		}
@@ -160,22 +163,24 @@ func newLineBlock(col, row, size int32) *LineBlock {
 		size,
 		randomColor(),
 	}
-	logger.Printf("[DEBUG] created new line=%v", l)
+	logger.Printf("[DEBUG] created new line=%+v", l)
 	return &l
 }
 
-func (l LineBlock) draw() {
+func (l LineBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
 	for yi := range l.size {
 		x := l.col*BLOCK_SIZE + LEFT_MARGIN
 		y := (l.row+yi)*BLOCK_SIZE + TOP_MARGIN
-		drawBlock(x, y, l.color)
+		if isNew || occupied[l.col][l.row+yi] {
+			drawBlock(x, y, l.color)
+		}
 	}
 }
 
 func (l LineBlock) setOccupied(occupied *[COLS][ROWS]bool) {
 	// TODO: switch on orientation (horizontal/vertical)
 	for row := range l.size {
-		logger.Printf("[DEBUG] line(%v).setOccupied(col=%d, row=%d)", l, l.col, l.row+row)
+		logger.Printf("[DEBUG] line(%+v).setOccupied(col=%d, row=%d)", l, l.col, l.row+row)
 		occupied[l.col][l.row+row] = true
 	}
 }
@@ -184,7 +189,7 @@ func (l LineBlock) isOnOccupied(occupied [COLS][ROWS]bool) bool {
 	// TODO: switch on orientation (horizontal/vertical)
 	for row := range l.size {
 		if occupied[l.col][l.row+row] {
-			logger.Printf("[DEBUG] line(%v).isOnOccupied(col=%d, row=%d)", l, l.col, row)
+			logger.Printf("[DEBUG] line(%+v).isOnOccupied(col=%d, row=%d)", l, l.col, row)
 			return true
 		}
 	}
@@ -322,16 +327,69 @@ func nextBlock() Block {
 	var block Block
 	switch blockIdx {
 	case 0:
-		size := int32(rand.Int() % 3 + 1)
-		block = newSquareBlock((COLS / 2) - (size / 2), (ROWS / 2) - (size / 2), size)
+		size := int32(rand.Int()%3 + 1)
+		block = newSquareBlock((COLS/2)-(size/2), (ROWS/2)-(size/2), size)
 	case 1:
 		sizes := []int32{2, 3, 4, 5}
 		sizeIdx := rand.Int() % len(sizes)
 		size := sizes[sizeIdx]
 		// TODO: make dependent on orientation
-		block = newLineBlock(COLS / 2, (ROWS / 2) - (size / 2), size)
+		block = newLineBlock(COLS/2, (ROWS/2)-(size/2), size)
 	}
 	return block
+}
+
+func isColumnFull(occupied [COLS][ROWS]bool, col int32) bool {
+	for row := range ROWS {
+		if !occupied[col][row] {
+			return false
+		}
+	}
+	logger.Printf("[DEBUG] column %d is full", col)
+	return true
+}
+
+func getFullColumns(occupied [COLS][ROWS]bool) []int32 {
+	fullCols := []int32{}
+	for col := range COLS {
+		if isColumnFull(occupied, col) {
+			fullCols = append(fullCols, col)
+		}
+	}
+	return fullCols
+}
+
+func isRowFull(occupied [COLS][ROWS]bool, row int32) bool {
+	for col := range COLS {
+		if !occupied[col][row] {
+			return false
+		}
+	}
+	logger.Printf("[DEBUG] row %d is full", row)
+	return true
+}
+
+func getFullRows(occupied [COLS][ROWS]bool) []int32 {
+	fullRows := []int32{}
+	for row := range ROWS {
+		if isRowFull(occupied, row) {
+			fullRows = append(fullRows, row)
+		}
+	}
+	return fullRows
+}
+
+func unoccupyFull(occupied *[COLS][ROWS]bool) {
+	fullCols := getFullColumns(*occupied)
+	fullRows := getFullRows(*occupied)
+	for col := range COLS {
+		for row := range ROWS {
+			if slices.Contains(fullCols, col) || slices.Contains(fullRows, row) {
+				logger.Printf("[DEBUG] unoccupying col=%d row=%d", col, row)
+				occupied[col][row] = false
+			}
+		}
+	}
 }
 
 func gameLoop() {
@@ -355,22 +413,23 @@ func gameLoop() {
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.DarkGray)
 		drawBoard()
-		
+
 		for _, block := range placedBlocks {
-			block.draw()
+			block.draw(occupied, false)
 		}
 
 		placed := handleInput(curBlock, occupied)
-		curBlock.draw()
+		curBlock.draw(occupied, true)
 		if placed {
 			logger.Println("[DEBUG] block can be placed")
 			placedBlocks = append(placedBlocks, curBlock)
-			logger.Printf("[DEBUG] placed blocks=%v", placedBlocks)
+			logger.Printf("[DEBUG] placed blocks=%+v", placedBlocks)
 			curBlock.setOccupied(&occupied)
+			unoccupyFull(&occupied)
 			availableBlocks[curBlockIdx] = nextBlock()
 			curBlock = availableBlocks[curBlockIdx]
 		}
-		
+
 		rl.EndDrawing()
 	}
 }
