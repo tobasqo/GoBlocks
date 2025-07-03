@@ -12,15 +12,15 @@ import (
 /*
 * TODO:
 * - more depth on block grid
-* - removing full row/col
 * - display for available blocks
-* - selecting prev/next block
 * - rotating block
 * - mirroring block
 * - plus block
 * - L block
 * - zigzag block
 * - fix type size
+* - gather points for destroying rows and cols
+* - save ranking and display records
  */
 
 const (
@@ -283,7 +283,15 @@ func isPlacePressed() bool {
 	return rl.IsKeyPressed(rl.KeySpace) || rl.IsKeyPressed(rl.KeyEnter)
 }
 
-func handleInput(block Block, occupied [COLS][ROWS]bool) bool {
+func isPrevBlockPressed() bool {
+	return rl.IsKeyPressed(rl.KeyP)
+}
+
+func isNextBlockPressed() bool {
+	return rl.IsKeyPressed(rl.KeyN)
+}
+
+func handleInput(block Block, occupied [COLS][ROWS]bool, curBlockIdx *int) bool {
 	if isUpPressed() {
 		logger.Println("[DEBUG] UP pressed")
 		block.moveUp()
@@ -318,10 +326,20 @@ func handleInput(block Block, occupied [COLS][ROWS]bool) bool {
 		logger.Println("[DEBUG] PLACE pressed")
 		return !block.isOnOccupied(occupied)
 	}
+	if isPrevBlockPressed() && *curBlockIdx >= 0 {
+		logger.Printf("[DEBUG] selecting previous block, current idx=%d", *curBlockIdx)
+		*curBlockIdx--
+		return false
+	}
+	if isNextBlockPressed() && *curBlockIdx <= 2 {
+		logger.Printf("[DEBUG] selecting next block, current idx=%d", *curBlockIdx)
+		*curBlockIdx++
+		return false
+	}
 	return false
 }
 
-func nextBlock() Block {
+func randomBlock() Block {
 	const nBlockTypes = 2
 	blockIdx := rand.Int() % nBlockTypes
 	var block Block
@@ -402,7 +420,7 @@ func gameLoop() {
 
 	availableBlocks := []Block{}
 	for range 3 {
-		availableBlocks = append(availableBlocks, nextBlock())
+		availableBlocks = append(availableBlocks, randomBlock())
 	}
 	curBlockIdx := 0
 	curBlock := availableBlocks[curBlockIdx]
@@ -418,7 +436,7 @@ func gameLoop() {
 			block.draw(occupied, false)
 		}
 
-		placed := handleInput(curBlock, occupied)
+		placed := handleInput(curBlock, occupied, &curBlockIdx)
 		curBlock.draw(occupied, true)
 		if placed {
 			logger.Println("[DEBUG] block can be placed")
@@ -426,7 +444,7 @@ func gameLoop() {
 			logger.Printf("[DEBUG] placed blocks=%+v", placedBlocks)
 			curBlock.setOccupied(&occupied)
 			unoccupyFull(&occupied)
-			availableBlocks[curBlockIdx] = nextBlock()
+			availableBlocks[curBlockIdx] = randomBlock()
 			curBlock = availableBlocks[curBlockIdx]
 		}
 
