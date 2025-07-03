@@ -11,6 +11,7 @@ import (
 
 /*
 * TODO:
+* - more visible current block
 * - more depth on block grid
 * - display for available blocks
 * - rotating block
@@ -48,9 +49,13 @@ func randomColor() rl.Color {
 	return colors[colorIdx]
 }
 
-func drawBlock(posX, posY int32, color rl.Color) {
+func drawBlock(posX, posY int32, color rl.Color, isNew bool) {
 	rl.DrawRectangle(posX, posY, BLOCK_SIZE, BLOCK_SIZE, color)
-	rl.DrawRectangleLines(posX, posY, BLOCK_SIZE, BLOCK_SIZE, rl.Black)
+	borderColor := rl.Black
+	if isNew {
+		borderColor = rl.White
+	}
+	rl.DrawRectangleLines(posX, posY, BLOCK_SIZE, BLOCK_SIZE, borderColor)
 }
 
 type Position struct {
@@ -92,7 +97,7 @@ func (s SquareBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
 		for yi := range s.size {
 			y := (s.row+yi)*BLOCK_SIZE + TOP_MARGIN
 			if isNew || occupied[s.col+xi][s.row+yi] {
-				drawBlock(x, y, s.color)
+				drawBlock(x, y, s.color, isNew)
 			}
 		}
 	}
@@ -172,7 +177,7 @@ func (l LineBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
 		x := l.col*BLOCK_SIZE + LEFT_MARGIN
 		y := (l.row+yi)*BLOCK_SIZE + TOP_MARGIN
 		if isNew || occupied[l.col][l.row+yi] {
-			drawBlock(x, y, l.color)
+			drawBlock(x, y, l.color, isNew)
 		}
 	}
 }
