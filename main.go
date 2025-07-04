@@ -11,9 +11,7 @@ import (
 
 /*
 * TODO:
-* - display for available blocks
-* - rotating block
-* - mirroring block
+* - add help
 * - plus block
 * - L block
 * - zigzag block
@@ -185,10 +183,18 @@ func (s *SquareBlock) rotate() {}
 
 func (s *SquareBlock) mirror() {}
 
+type LineOrientation string
+
+const (
+	LINE_HORIZONTAL LineOrientation = "horizontal"
+	LINE_VERTICAL   LineOrientation = "vertical"
+)
+
 type LineBlock struct {
 	Position
-	size  int32
-	color rl.Color
+	size        int32
+	color       rl.Color
+	orientation LineOrientation
 }
 
 func newLineBlock(col, row, size int32) *LineBlock {
@@ -196,17 +202,28 @@ func newLineBlock(col, row, size int32) *LineBlock {
 		Position{col, row},
 		size,
 		randomColor(),
+		LINE_VERTICAL,
 	}
 	logger.Printf("[DEBUG] created new line=%+v", l)
 	return &l
 }
 
 func (l LineBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
-	for yi := range l.size {
-		x := l.col*BLOCK_SIZE + LEFT_MARGIN
-		y := (l.row+yi)*BLOCK_SIZE + TOP_MARGIN
-		if isNew || occupied[l.col][l.row+yi] {
-			drawBlock(x, y, l.color, isNew, GAME_BLOCK_SCALE)
+	if l.orientation == LINE_VERTICAL {
+		for yi := range l.size {
+			x := l.col*BLOCK_SIZE + LEFT_MARGIN
+			y := (l.row+yi)*BLOCK_SIZE + TOP_MARGIN
+			if isNew || occupied[l.col][l.row+yi] {
+				drawBlock(x, y, l.color, isNew, GAME_BLOCK_SCALE)
+			}
+		}
+	} else {
+		for xi := range l.size {
+			x := (l.col+xi)*BLOCK_SIZE + LEFT_MARGIN
+			y := l.row*BLOCK_SIZE + TOP_MARGIN
+			if isNew || occupied[l.col+xi][l.row] {
+				drawBlock(x, y, l.color, isNew, GAME_BLOCK_SCALE)
+			}
 		}
 	}
 }
@@ -222,26 +239,39 @@ func (l LineBlock) drawAsAvailable(idx int32, selected bool) {
 }
 
 func (l LineBlock) setOccupied(occupied *[COLS][ROWS]bool) {
-	// TODO: switch on orientation (horizontal/vertical)
-	for row := range l.size {
-		logger.Printf("[DEBUG] line(%+v).setOccupied(col=%d, row=%d)", l, l.col, l.row+row)
-		occupied[l.col][l.row+row] = true
+	if l.orientation == LINE_VERTICAL {
+		for row := range l.size {
+			logger.Printf("[DEBUG] line(%+v).setOccupied(col=%d, row=%d)", l, l.col, l.row+row)
+			occupied[l.col][l.row+row] = true
+		}
+	} else {
+		for col := range l.size {
+			logger.Printf("[DEBUG] line(%+v).setOccupied(col=%d, row=%d)", l, l.col+col, l.row)
+			occupied[l.col+col][l.row] = true
+		}
 	}
 }
 
 func (l LineBlock) isOnOccupied(occupied [COLS][ROWS]bool) bool {
-	// TODO: switch on orientation (horizontal/vertical)
-	for row := range l.size {
-		if occupied[l.col][l.row+row] {
-			logger.Printf("[DEBUG] line(%+v).isOnOccupied(col=%d, row=%d)", l, l.col, row)
-			return true
+	if l.orientation == LINE_VERTICAL {
+		for row := range l.size {
+			if occupied[l.col][l.row+row] {
+				logger.Printf("[DEBUG] line(%+v).isOnOccupied(col=%d, row=%d)", l, l.col, l.row+row)
+				return true
+			}
+		}
+	} else {
+		for col := range l.size {
+			if occupied[l.col+col][l.row] {
+				logger.Printf("[DEBUG] line(%+v).isOnOccupied(col=%d, row=%d)", l, l.col+col, l.row)
+				return true
+			}
 		}
 	}
 	return false
 }
 
 func (l *LineBlock) moveUp() {
-	// TODO: switch on orientation (horizontal/vertical)
 	if l.row <= 0 {
 		return
 	}
@@ -249,31 +279,29 @@ func (l *LineBlock) moveUp() {
 }
 
 func (l *LineBlock) moveDown() {
-	// TODO: switch on orientation (horizontal/vertical)
-	if l.row+l.size >= ROWS {
-		return
+	if (l.orientation == LINE_VERTICAL && l.row+l.size < ROWS) || (l.orientation == LINE_HORIZONTAL && l.row < ROWS-1) {
+		l.row++
 	}
-	l.row++
 }
 
 func (l *LineBlock) moveLeft() {
-	// TODO: switch on orientation (horizontal/vertical)
-	if l.col <= 0 {
-		return
+	if l.col > 0 {
+		l.col--
 	}
-	l.col--
 }
 
 func (l *LineBlock) moveRight() {
-	// TODO: switch on orientation (horizontal/vertical)
-	if l.col >= COLS {
-		return
+	if (l.orientation == LINE_VERTICAL && l.col < COLS-1) || (l.orientation == LINE_HORIZONTAL && l.col+l.size < COLS) {
+		l.col++
 	}
-	l.col++
 }
 
 func (l *LineBlock) rotate() {
-	// TODO: switch orientation
+	if l.orientation == LINE_VERTICAL {
+		l.orientation = LINE_HORIZONTAL
+	} else {
+		l.orientation = LINE_VERTICAL
+	}
 }
 
 func (l *LineBlock) mirror() {}
@@ -414,7 +442,6 @@ func randomBlock() Block {
 		sizes := []int32{2, 3, 4, 5}
 		sizeIdx := rand.Int() % len(sizes)
 		size := sizes[sizeIdx]
-		// TODO: make dependent on orientation
 		block = newLineBlock(COLS/2, (ROWS/2)-(size/2), size)
 	}
 	return block
