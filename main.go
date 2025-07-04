@@ -51,7 +51,10 @@ const (
 	STROKE                   float32 = 2
 )
 
-var logger *log.Logger = log.New(os.Stdout, "goblocks:", log.LstdFlags)
+var (
+	logger   *log.Logger = log.New(os.Stdout, "goblocks:", log.LstdFlags)
+	showHelp             = false
+)
 
 func randomColor() rl.Color {
 	colors := []rl.Color{rl.Red, rl.Orange, rl.Yellow, rl.Green, rl.Blue, rl.Pink}
@@ -382,7 +385,22 @@ func isNextBlockPressed() bool {
 	return rl.IsKeyPressed(rl.KeyN)
 }
 
+func isHelpPressed() bool {
+	if rl.IsKeyDown(rl.KeyLeftShift) || rl.IsKeyDown(rl.KeyRightShift) {
+		return rl.IsKeyPressed(rl.KeySlash)
+	}
+	if rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl) {
+		return rl.IsKeyPressed(rl.KeyH)
+	}
+	return false
+}
+
 func handleInput(block Block, occupied [COLS][ROWS]bool, curBlockIdx *int) bool {
+	if isHelpPressed() {
+		logger.Println("[DEBUG] help pressed")
+		showHelp = !showHelp
+		return false
+	}
 	if isUpPressed() {
 		logger.Println("[DEBUG] UP pressed")
 		block.moveUp()
@@ -428,6 +446,34 @@ func handleInput(block Block, occupied [COLS][ROWS]bool, curBlockIdx *int) bool 
 		return false
 	}
 	return false
+}
+
+func showHelpWindow() {
+	rl.DrawRectangle(GAME_START_X, GAME_START_Y, GAME_WIDTH, GAME_HEIGHT, rl.Fade(rl.SkyBlue, 0.9))
+	padding := int32(6)
+	fontSize := int32(30)
+	textPositionX := GAME_START_X + padding
+	textPositionY := GAME_START_Y + padding
+	rl.DrawText("Controls:", textPositionX, textPositionY, fontSize, rl.Black)
+	lines := [][]string{
+		{"Toggle help:", "Ctrl+H or ?"},
+		{"Close game:", "ESCAPE"},
+		{"Move up:", "W or ARROW_UP or K"},
+		{"Move down:", "S or ARROW_DOWN or J"},
+		{"Move left:", "A or ARROW_LEFT or H"},
+		{"Move right:", "D or ARROW_RIGHT or L"},
+		{"Place block:", "SPACE or ENTER"},
+		{"Rotate block:", "R"},
+		{"Mirror block:", "M"},
+		{"Select next block:", "N"},
+		{"Select prev block:", "P"},
+	}
+	fontSize = 24
+	for _, line := range lines {
+		textPositionY += fontSize + int32(padding)
+		rl.DrawText(line[0], textPositionX, textPositionY, fontSize, rl.DarkGray)
+		rl.DrawText(line[1], textPositionX+300, textPositionY, fontSize, rl.DarkGray)
+	}
 }
 
 func randomBlock() Block {
@@ -528,15 +574,19 @@ func gameLoop() {
 		}
 
 		placed := handleInput(curBlock, occupied, &curBlockIdx)
-		curBlock = availableBlocks[curBlockIdx]
-		curBlock.draw(occupied, true)
-		if placed {
-			logger.Println("[DEBUG] block can be placed")
-			placedBlocks = append(placedBlocks, curBlock)
-			logger.Printf("[DEBUG] placed blocks=%+v", placedBlocks)
-			curBlock.setOccupied(&occupied)
-			unoccupyFull(&occupied)
-			availableBlocks[curBlockIdx] = randomBlock()
+		if showHelp {
+			showHelpWindow()
+		} else {
+			curBlock = availableBlocks[curBlockIdx]
+			curBlock.draw(occupied, true)
+			if placed {
+				logger.Println("[DEBUG] block can be placed")
+				placedBlocks = append(placedBlocks, curBlock)
+				logger.Printf("[DEBUG] placed blocks=%+v", placedBlocks)
+				curBlock.setOccupied(&occupied)
+				unoccupyFull(&occupied)
+				availableBlocks[curBlockIdx] = randomBlock()
+			}
 		}
 
 		rl.EndDrawing()
