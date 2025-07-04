@@ -11,34 +11,46 @@ import (
 
 /*
 * TODO:
-* - more visible current block
-* - more depth on block grid
 * - display for available blocks
 * - rotating block
 * - mirroring block
 * - plus block
 * - L block
 * - zigzag block
+* - more depth on block grid
 * - fix type size
 * - gather points for destroying rows and cols
 * - save ranking and display records
  */
 
 const (
-	TITLE                 = "GoBlocks"
-	W_WIDTH       int32   = 960
-	W_HEIGHT      int32   = 820
-	FPS           int32   = 60
-	TOP_MARGIN    int32   = 20
-	LEFT_MARGIN   int32   = 30
-	RIGHT_MARGIN  int32   = LEFT_MARGIN
-	BOTTOM_MARGIN int32   = 200
-	G_WIDTH       int32   = W_WIDTH - LEFT_MARGIN - RIGHT_MARGIN
-	G_HEIGHT      int32   = W_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN
-	BLOCK_SIZE    int32   = 60
-	COLS          int32   = G_WIDTH / BLOCK_SIZE
-	ROWS          int32   = G_HEIGHT / BLOCK_SIZE
-	STROKE        float32 = 2
+	TITLE                            = "GoBlocks"
+	WIN_WIDTH                int32   = 960
+	WIN_HEIGHT               int32   = 820
+	FPS                      int32   = 60
+	TOP_MARGIN               int32   = 20
+	LEFT_MARGIN              int32   = 30
+	RIGHT_MARGIN             int32   = LEFT_MARGIN
+	BOTTOM_MARGIN            int32   = 200
+	BLOCK_SIZE               int32   = 60
+	GAME_WIDTH               int32   = WIN_WIDTH - LEFT_MARGIN - RIGHT_MARGIN
+	GAME_HEIGHT              int32   = WIN_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN
+	GAME_START_X             int32   = LEFT_MARGIN
+	GAME_END_X               int32   = GAME_START_X + GAME_WIDTH
+	GAME_START_Y             int32   = TOP_MARGIN
+	GAME_END_Y               int32   = GAME_START_Y + GAME_HEIGHT
+	GAME_BLOCK_SCALE         float32 = 1
+	AVAILABLE_BLOCKS_WIDTH   int32   = (WIN_WIDTH-LEFT_MARGIN)/2 + 2
+	AVAILABLE_BLOCKS_HEIGHT  int32   = BOTTOM_MARGIN - 2*TOP_MARGIN
+	AVAILABLE_BLOCKS_START_X int32   = LEFT_MARGIN
+	AVAILABLE_BLOCKS_END_X   int32   = AVAILABLE_BLOCKS_START_X + AVAILABLE_BLOCKS_WIDTH
+	AVAILABLE_BLOCKS_START_Y int32   = GAME_END_Y + TOP_MARGIN
+	AVAILABLE_BLOCKS_END_Y   int32   = AVAILABLE_BLOCKS_START_Y + AVAILABLE_BLOCKS_HEIGHT
+	AVAILABLE_BLOCK_SCALE    float32 = 1.0 / 2
+	AVAILABLE_BLOCK_SIZE     int32   = int32(float32(BLOCK_SIZE) * AVAILABLE_BLOCK_SCALE)
+	COLS                     int32   = GAME_WIDTH / BLOCK_SIZE
+	ROWS                     int32   = GAME_HEIGHT / BLOCK_SIZE
+	STROKE                   float32 = 2
 )
 
 var logger *log.Logger = log.New(os.Stdout, "goblocks:", log.LstdFlags)
@@ -49,13 +61,17 @@ func randomColor() rl.Color {
 	return colors[colorIdx]
 }
 
-func drawBlock(posX, posY int32, color rl.Color, isNew bool) {
-	rl.DrawRectangle(posX, posY, BLOCK_SIZE, BLOCK_SIZE, color)
+func drawBlock(posX, posY int32, color rl.Color, highlight bool, scale float32) {
+	if scale == 0 {
+		scale = 1
+	}
+	blockSize := int32(float32(BLOCK_SIZE) * scale)
+	rl.DrawRectangle(posX, posY, blockSize, blockSize, color)
 	borderColor := rl.Black
-	if isNew {
+	if highlight {
 		borderColor = rl.White
 	}
-	rl.DrawRectangleLines(posX, posY, BLOCK_SIZE, BLOCK_SIZE, borderColor)
+	rl.DrawRectangleLines(posX, posY, blockSize, blockSize, borderColor)
 }
 
 type Position struct {
@@ -63,7 +79,8 @@ type Position struct {
 }
 
 type Block interface {
-	draw(occupied [COLS][ROWS]bool, isNew bool)
+	draw(occupied [COLS][ROWS]bool, highlight bool)
+	drawAsAvailable(idx int32, selected bool)
 	setOccupied(occupied *[COLS][ROWS]bool)
 	isOnOccupied(occupied [COLS][ROWS]bool) bool
 	moveUp()
@@ -91,14 +108,26 @@ func newSquareBlock(col, row, size int32) *SquareBlock {
 	return &s
 }
 
-func (s SquareBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
+func (s SquareBlock) draw(occupied [COLS][ROWS]bool, highlight bool) {
 	for xi := range s.size {
 		x := (s.col+xi)*BLOCK_SIZE + LEFT_MARGIN
 		for yi := range s.size {
 			y := (s.row+yi)*BLOCK_SIZE + TOP_MARGIN
-			if isNew || occupied[s.col+xi][s.row+yi] {
-				drawBlock(x, y, s.color, isNew)
+			if highlight || occupied[s.col+xi][s.row+yi] {
+				drawBlock(x, y, s.color, highlight, GAME_BLOCK_SCALE)
 			}
+		}
+	}
+}
+
+func (s SquareBlock) drawAsAvailable(idx int32, selected bool) {
+	startX := AVAILABLE_BLOCKS_START_X + idx*AVAILABLE_BLOCKS_WIDTH/3 + AVAILABLE_BLOCKS_WIDTH/6 - s.size*AVAILABLE_BLOCK_SIZE/2.0 + idx
+	startY := AVAILABLE_BLOCKS_START_Y + AVAILABLE_BLOCKS_HEIGHT/2 - s.size*AVAILABLE_BLOCK_SIZE/2.0
+	for xi := range s.size {
+		x := startX + xi*AVAILABLE_BLOCK_SIZE
+		for yi := range s.size {
+			y := startY + yi*AVAILABLE_BLOCK_SIZE
+			drawBlock(x, y, s.color, selected, AVAILABLE_BLOCK_SCALE)
 		}
 	}
 }
@@ -177,8 +206,18 @@ func (l LineBlock) draw(occupied [COLS][ROWS]bool, isNew bool) {
 		x := l.col*BLOCK_SIZE + LEFT_MARGIN
 		y := (l.row+yi)*BLOCK_SIZE + TOP_MARGIN
 		if isNew || occupied[l.col][l.row+yi] {
-			drawBlock(x, y, l.color, isNew)
+			drawBlock(x, y, l.color, isNew, GAME_BLOCK_SCALE)
 		}
+	}
+}
+
+func (l LineBlock) drawAsAvailable(idx int32, selected bool) {
+	startX := AVAILABLE_BLOCKS_START_X + idx*AVAILABLE_BLOCKS_WIDTH/3 + AVAILABLE_BLOCKS_WIDTH/6 - l.size*AVAILABLE_BLOCK_SIZE/2.0 + idx
+	startY := AVAILABLE_BLOCKS_START_Y + AVAILABLE_BLOCKS_HEIGHT/2 - AVAILABLE_BLOCK_SIZE/2.0
+	for xi := range l.size {
+		x := startX + xi*AVAILABLE_BLOCK_SIZE
+		y := startY
+		drawBlock(x, y, l.color, selected, AVAILABLE_BLOCK_SCALE)
 	}
 }
 
@@ -240,16 +279,35 @@ func (l *LineBlock) rotate() {
 func (l *LineBlock) mirror() {}
 
 func drawBoard() {
-	rl.DrawRectangle(LEFT_MARGIN, TOP_MARGIN, G_WIDTH, G_HEIGHT, rl.LightGray)
+	rl.DrawRectangle(LEFT_MARGIN, TOP_MARGIN, GAME_WIDTH, GAME_HEIGHT, rl.LightGray)
 	rl.SetLineWidth(STROKE)
 	for i := range COLS + 1 {
 		xBase := int32(i*BLOCK_SIZE) + LEFT_MARGIN
-		rl.DrawLine(xBase, TOP_MARGIN, xBase, TOP_MARGIN+G_HEIGHT, rl.Gray)
+		rl.DrawLine(xBase, TOP_MARGIN, xBase, TOP_MARGIN+GAME_HEIGHT, rl.Gray)
 	}
 	for i := range ROWS + 1 {
 		yBase := int32(i*BLOCK_SIZE) + TOP_MARGIN
-		rl.DrawLine(LEFT_MARGIN, yBase, LEFT_MARGIN+G_WIDTH, yBase, rl.Gray)
+		rl.DrawLine(LEFT_MARGIN, yBase, LEFT_MARGIN+GAME_WIDTH, yBase, rl.Gray)
 	}
+}
+
+func drawAvailable(blocks []Block, curBlockIdx int) {
+	rl.DrawRectangle(AVAILABLE_BLOCKS_START_X, AVAILABLE_BLOCKS_START_Y, AVAILABLE_BLOCKS_WIDTH, AVAILABLE_BLOCKS_HEIGHT, rl.Gray)
+	rl.SetLineWidth(1)
+	sepStartX := AVAILABLE_BLOCKS_START_X + AVAILABLE_BLOCKS_WIDTH/3 + 1
+	sepStartY := AVAILABLE_BLOCKS_START_Y
+	sepEndY := sepStartY + AVAILABLE_BLOCKS_HEIGHT
+	rl.DrawLine(sepStartX, sepStartY, sepStartX, sepEndY, rl.DarkGray)
+	sepStartX = sepStartX + AVAILABLE_BLOCKS_WIDTH/3 + 1
+	rl.DrawLine(sepStartX, sepStartY, sepStartX, sepEndY, rl.DarkGray)
+	for idx, block := range blocks {
+		selected := false
+		if idx == curBlockIdx {
+			selected = true
+		}
+		block.drawAsAvailable(int32(idx), selected)
+	}
+	rl.SetLineWidth(STROKE)
 }
 
 func resetOccupied(occupied *[COLS][ROWS]bool) {
@@ -331,14 +389,14 @@ func handleInput(block Block, occupied [COLS][ROWS]bool, curBlockIdx *int) bool 
 		logger.Println("[DEBUG] PLACE pressed")
 		return !block.isOnOccupied(occupied)
 	}
-	if isPrevBlockPressed() && *curBlockIdx >= 0 {
-		logger.Printf("[DEBUG] selecting previous block, current idx=%d", *curBlockIdx)
+	if isPrevBlockPressed() && *curBlockIdx > 0 {
 		*curBlockIdx--
+		logger.Printf("[DEBUG] selecting previous block, current idx=%d", *curBlockIdx)
 		return false
 	}
-	if isNextBlockPressed() && *curBlockIdx <= 2 {
-		logger.Printf("[DEBUG] selecting next block, current idx=%d", *curBlockIdx)
+	if isNextBlockPressed() && *curBlockIdx < 2 {
 		*curBlockIdx++
+		logger.Printf("[DEBUG] selecting next block, current idx=%d", *curBlockIdx)
 		return false
 	}
 	return false
@@ -416,7 +474,7 @@ func unoccupyFull(occupied *[COLS][ROWS]bool) {
 }
 
 func gameLoop() {
-	rl.InitWindow(W_WIDTH, W_HEIGHT, TITLE)
+	rl.InitWindow(WIN_WIDTH, WIN_HEIGHT, TITLE)
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(FPS)
 
@@ -436,12 +494,14 @@ func gameLoop() {
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.DarkGray)
 		drawBoard()
+		drawAvailable(availableBlocks, curBlockIdx)
 
 		for _, block := range placedBlocks {
 			block.draw(occupied, false)
 		}
 
 		placed := handleInput(curBlock, occupied, &curBlockIdx)
+		curBlock = availableBlocks[curBlockIdx]
 		curBlock.draw(occupied, true)
 		if placed {
 			logger.Println("[DEBUG] block can be placed")
@@ -450,7 +510,6 @@ func gameLoop() {
 			curBlock.setOccupied(&occupied)
 			unoccupyFull(&occupied)
 			availableBlocks[curBlockIdx] = randomBlock()
-			curBlock = availableBlocks[curBlockIdx]
 		}
 
 		rl.EndDrawing()
