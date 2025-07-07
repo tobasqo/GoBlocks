@@ -19,11 +19,7 @@ type LineBlock struct {
 
 func NewLineBlock(col, row, size int32, orientation LineOrientation) *LineBlock {
 	l := LineBlock{
-		CommonBlock{
-			Position{col, row},
-			RandomColor(),
-			false,
-		},
+		newCommonBlock(col, row),
 		size,
 		orientation,
 	}

@@ -28,6 +28,14 @@ type CommonBlock struct {
 	selected bool
 }
 
+func newCommonBlock(col, row int32) CommonBlock {
+	return CommonBlock{
+		Position{col, row},
+		RandomColor(),
+		false,
+	}
+}
+
 func (b *CommonBlock) Select() {
 	b.selected = true
 }
