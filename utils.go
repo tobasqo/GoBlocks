@@ -26,13 +26,29 @@ func RandomBlock(cols, rows int32) Block {
 	blockIdx := rand.Int() % nBlockTypes
 	switch blockIdx {
 	case 0:
-		size := int32(rand.Int()%3 + 1)
-		return NewSquareBlock((cols/2)-(size/2), (rows/2)-(size/2), size)
+		oneByOne := rand.Int()%6 == 1
+		var width int32
+		var height int32
+		if oneByOne {
+			width = 1
+			height = 1
+		} else {
+			width = int32(rand.Int()%2 + 2)
+			height = int32(rand.Int()%2 + 2)
+		}
+		return NewRectangleBlock((cols/2)-(width/2), (rows/2)-(height/2), width, height)
 	case 1:
 		sizes := []int32{2, 3, 4, 5}
 		sizeIdx := rand.Int() % len(sizes)
 		size := sizes[sizeIdx]
-		return NewLineBlock(cols/2, (rows/2)-(size/2), size)
+		horizontal := rand.Int() % 2 == 0
+		var orientation LineOrientation
+		if horizontal {
+			orientation = LINE_HORIZONTAL
+		} else {
+			orientation = LINE_VERTICAL
+		}
+		return NewLineBlock(cols/2, (rows/2)-(size/2), size, orientation)
 	}
 	panic("rnd block idx out of range")
 }

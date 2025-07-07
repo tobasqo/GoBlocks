@@ -11,8 +11,8 @@ type Block interface {
 	MoveDown(maxRow int32)
 	MoveLeft()
 	MoveRight(maxCol int32)
-	Rotate()
-	Mirror()
+	Rotate(b Board)
+	Mirror(b Board)
 	Select()
 	Deselect()
 	Selected() bool

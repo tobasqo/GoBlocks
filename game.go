@@ -139,12 +139,12 @@ func (g *Game) HandleInput() {
 	}
 	if IsRotatePressed() {
 		log.Println("[DEBUG] ROTATE pressed")
-		block.Rotate()
+		block.Rotate(*b)
 		return
 	}
 	if IsMirrorPressed() {
 		log.Println("[DEBUG] MIRROR pressed")
-		block.Mirror()
+		block.Mirror(*b)
 		return
 	}
 	if IsPlacePressed() {
@@ -165,9 +165,7 @@ func (g *Game) HandleInput() {
 	}
 	if IsNextBlockPressed() {
 		log.Println("[DEBUG] NEXT pressed")
-		// log.Printf("%+v", ab)
 		ab.SelectNext()
-		// log.Printf("%+v", ab)
 		return
 	}
 }
