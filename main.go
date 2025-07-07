@@ -2,7 +2,6 @@ package main
 
 /*
 * TODO:
-* - plus block
 * - L block
 * - zigzag block
 * - more depth on block grid
