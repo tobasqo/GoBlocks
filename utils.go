@@ -22,7 +22,7 @@ func DrawBlock(posX, posY int32, color rl.Color, blockSize int32, selected bool)
 }
 
 func RandomBlock(cols, rows int32) Block {
-	const nBlockTypes = 2
+	const nBlockTypes = 3
 	blockIdx := rand.Int() % nBlockTypes
 	switch blockIdx {
 	case 0:
@@ -49,6 +49,20 @@ func RandomBlock(cols, rows int32) Block {
 			orientation = LINE_VERTICAL
 		}
 		return NewLineBlock(cols/2, (rows/2)-(size/2), size, orientation)
+	case 2:
+		orientationIdx := rand.Int() % 4
+		var orientation PlusOrientation
+		switch orientationIdx {
+		case 0:
+			orientation = PLUS_UP
+		case 1:
+			orientation = PLUS_LEFT
+		case 2:
+			orientation = PLUS_DOWN
+		case 3:
+			orientation = PLUS_RIGHT
+		}
+		return NewPlusBlock(cols/2, rows/2, orientation)
 	}
 	panic("rnd block idx out of range")
 }
